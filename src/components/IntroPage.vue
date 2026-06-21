@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { ref, onMounted, onUnmounted, watch } from 'vue'
+  import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
   import { savePlayerSettings, loadPlayerSettings } from '../utils/cache'
   import { SecureRandom } from '../utils/secureRandom'
   import { devLog } from '../utils/logger'
@@ -11,9 +11,30 @@
 
   const emit = defineEmits<Emits>()
 
+  // 玩家颜色列表（与 gameService 保持一致）
+  const PLAYER_COLORS = [
+    '#FF6B6B',
+    '#4ECDC4',
+    '#45B7D1',
+    '#96CEB4',
+    '#FECA57',
+    '#FF9FF3',
+    '#54A0FF',
+    '#5F27CD',
+  ]
+
   // 玩家配置状态
   const playerCount = ref(2)
   const playerNames = ref<string[]>(['玩家1', '玩家2'])
+
+  // 获取玩家颜色
+  const getPlayerColor = (index: number) => PLAYER_COLORS[index % PLAYER_COLORS.length]
+
+  // 获取头像显示文字（名字首字）
+  const getAvatarText = (name: string) => {
+    if (!name || name.trim() === '') return '?'
+    return name.trim().charAt(0).toUpperCase()
+  }
 
   // 加载玩家设置的函数
   const loadAndApplyPlayerSettings = () => {
@@ -77,24 +98,14 @@
   // 清空缓存功能
   const clearCache = () => {
     try {
-      // 清空localStorage中的引导相关数据
       localStorage.removeItem('hasShownGuide')
       localStorage.removeItem('autoGuideEnabled')
-
-      // 清空玩家设置缓存
       localStorage.removeItem('playerSettings')
-
-      // 清空游戏配置缓存
       localStorage.removeItem('gameConfig')
-
-      // 显示成功提示
       showClearSuccess.value = true
-
-      // 3秒后隐藏提示
       setTimeout(() => {
         showClearSuccess.value = false
       }, 3000)
-
       devLog('缓存已清空，引导将重新触发')
     } catch (error) {
       console.error('清空缓存时出错:', error)
@@ -113,9 +124,7 @@
   onMounted(() => {
     initParticles()
     animateParticles()
-    updatePlayerNames() // 初始化玩家名称
-
-    // 监听玩家设置更新事件
+    updatePlayerNames()
     window.addEventListener('playerSettingsUpdated', handlePlayerSettingsUpdate as EventListener)
     devLog('IntroPage: 已注册玩家设置更新监听器')
   })
@@ -124,8 +133,6 @@
     if (animationId.value) {
       cancelAnimationFrame(animationId.value)
     }
-
-    // 移除事件监听器
     window.removeEventListener('playerSettingsUpdated', handlePlayerSettingsUpdate as EventListener)
     devLog('IntroPage: 已移除玩家设置更新监听器')
   })
@@ -145,11 +152,9 @@
     particles.value.forEach(particle => {
       particle.x += particle.vx
       particle.y += particle.vy
-
       if (particle.x < 0 || particle.x > window.innerWidth) particle.vx *= -1
       if (particle.y < 0 || particle.y > window.innerHeight) particle.vy *= -1
     })
-
     animationId.value = requestAnimationFrame(animateParticles)
   }
 
@@ -157,24 +162,14 @@
     const delay = index * 0.5
     const left = 10 + index * 15
     const top = 20 + (index % 3) * 30
-
-    return {
-      left: `${left}%`,
-      top: `${top}%`,
-      animationDelay: `${delay}s`,
-    }
+    return { left: `${left}%`, top: `${top}%`, animationDelay: `${delay}s` }
   }
 
   const getStarStyle = (index: number) => {
     const delay = index * 0.3
     const right = 5 + index * 12
     const top = 15 + (index % 4) * 25
-
-    return {
-      right: `${right}%`,
-      top: `${top}%`,
-      animationDelay: `${delay}s`,
-    }
+    return { right: `${right}%`, top: `${top}%`, animationDelay: `${delay}s` }
   }
 
   const getParticleStyle = (particle: { x: number; y: number; size: number; opacity: number }) => {
@@ -229,7 +224,6 @@
             <div class="dev-avatar">👨‍💻</div>
             <div class="dev-details">
               <span class="dev-name">开发者：阿汤</span>
-              <!-- 论坛宣传链接 -->
               <a
                 href="https://atang-sp.run.place"
                 target="_blank"
@@ -286,13 +280,21 @@
           </div>
         </div>
 
-        <!-- 玩家名称设置 -->
+        <!-- 玩家名称设置（带头像展示）-->
         <div class="player-names-section">
           <div class="names-header">
             <span class="names-title">玩家昵称</span>
           </div>
           <div class="names-list">
             <div v-for="(name, index) in playerNames" :key="index" class="name-item">
+              <!-- 玩家头像（自动按颜色+首字母生成，不可选择） -->
+              <div
+                class="player-avatar-display"
+                :style="{ backgroundColor: getPlayerColor(index) }"
+              >
+                <span class="avatar-letter">{{ getAvatarText(name) }}</span>
+              </div>
+              <!-- 名称输入框 -->
               <div class="name-input-container">
                 <input
                   type="text"
@@ -755,18 +757,48 @@
 
   .names-list {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(200px, 80vw), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 80vw), 1fr));
     gap: clamp(0.8rem, 2vw, 1rem);
   }
 
   .name-item {
     position: relative;
+    display: flex;
+    align-items: center;
+    gap: clamp(0.6rem, 1.5vw, 0.8rem);
+  }
+
+  /* 玩家头像展示（只读，不可选） */
+  .player-avatar-display {
+    width: clamp(40px, 10vw, 48px);
+    height: clamp(40px, 10vw, 48px);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    transition: box-shadow 0.3s ease;
+  }
+
+  .player-avatar-display:hover {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  }
+
+  .avatar-letter {
+    font-size: clamp(1rem, 3vw, 1.2rem);
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    line-height: 1;
   }
 
   .name-input-container {
     position: relative;
     display: flex;
     align-items: center;
+    flex: 1;
   }
 
   .name-input {
@@ -1001,567 +1033,102 @@
     animation: lightSweep 8s ease-in-out infinite;
   }
 
-  .light-1 {
-    left: 20%;
-    animation-delay: 0s;
-  }
-
-  .light-2 {
-    left: 50%;
-    animation-delay: 2.5s;
-  }
-
-  .light-3 {
-    left: 80%;
-    animation-delay: 5s;
-  }
+  .light-1 { left: 20%; animation-delay: 0s; }
+  .light-2 { left: 50%; animation-delay: 2.5s; }
+  .light-3 { left: 80%; animation-delay: 5s; }
 
   /* 动画定义 */
   @keyframes gradientShift {
-    0%,
-    100% {
-      background-position: 0% 50%;
-    }
-    50% {
-      background-position: 100% 50%;
-    }
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
   }
 
   @keyframes titleFloat {
-    0%,
-    100% {
-      transform: translateY(0px);
-    }
-    50% {
-      transform: translateY(-10px);
-    }
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
   }
 
   @keyframes lineGlow {
-    0%,
-    100% {
-      opacity: 0.5;
-    }
-    50% {
-      opacity: 1;
-    }
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
   }
 
   @keyframes starTwinkle {
-    0%,
-    100% {
-      opacity: 1;
-      transform: scale(1) rotate(0deg);
-    }
-    50% {
-      opacity: 0.7;
-      transform: scale(1.2) rotate(180deg);
-    }
+    0%, 100% { opacity: 1; transform: scale(1) rotate(0deg); }
+    50% { opacity: 0.7; transform: scale(1.2) rotate(180deg); }
   }
 
   @keyframes underlineGlow {
-    0%,
-    100% {
-      opacity: 0.5;
-    }
-    50% {
-      opacity: 1;
-    }
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
   }
 
   @keyframes avatarFloat {
-    0%,
-    100% {
-      transform: translateY(0px);
-    }
-    50% {
-      transform: translateY(-5px);
-    }
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-5px); }
   }
 
   @keyframes rocketBounce {
-    0%,
-    100% {
-      transform: translateY(0px);
-    }
-    50% {
-      transform: translateY(-3px);
-    }
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-3px); }
   }
 
   @keyframes floatDice {
-    0%,
-    100% {
-      transform: translateY(0px) rotate(0deg) scale(1);
-      opacity: 0.2;
-    }
-    50% {
-      transform: translateY(-30px) rotate(180deg) scale(1.1);
-      opacity: 0.4;
-    }
+    0%, 100% { transform: translateY(0px) rotate(0deg) scale(1); opacity: 0.2; }
+    50% { transform: translateY(-30px) rotate(180deg) scale(1.1); opacity: 0.4; }
   }
 
   @keyframes floatStar {
-    0%,
-    100% {
-      transform: translateY(0px) scale(1) rotate(0deg);
-      opacity: 0.2;
-    }
-    50% {
-      transform: translateY(-25px) scale(1.3) rotate(90deg);
-      opacity: 0.4;
-    }
+    0%, 100% { transform: translateY(0px) scale(1) rotate(0deg); opacity: 0.2; }
+    50% { transform: translateY(-25px) scale(1.3) rotate(90deg); opacity: 0.4; }
   }
 
   @keyframes shapeFloat {
-    0%,
-    100% {
-      transform: translateY(0px) rotate(0deg);
-      opacity: 0.1;
-    }
-    50% {
-      transform: translateY(-40px) rotate(180deg);
-      opacity: 0.3;
-    }
+    0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.1; }
+    50% { transform: translateY(-40px) rotate(180deg); opacity: 0.3; }
   }
 
   @keyframes lightSweep {
-    0% {
-      transform: translateY(-100%) scaleY(0);
-      opacity: 0;
-    }
-    50% {
-      transform: translateY(0%) scaleY(1);
-      opacity: 1;
-    }
-    100% {
-      transform: translateY(100%) scaleY(0);
-      opacity: 0;
-    }
+    0% { transform: translateY(-100%) scaleY(0); opacity: 0; }
+    50% { transform: translateY(0%) scaleY(1); opacity: 1; }
+    100% { transform: translateY(100%) scaleY(0); opacity: 0; }
   }
 
   /* 移动端优化 */
   @media (max-width: 767px) {
-    .intro-page {
-      padding: 1rem;
-      min-height: 100vh;
-    }
-
-    .intro-content {
-      gap: 1.5rem;
-      padding: 1rem;
-    }
-
-    .intro-header {
-      gap: 1rem;
-    }
-
-    .title-container {
-      gap: 0.5rem;
-    }
-
-    .game-title {
-      font-size: clamp(1.8rem, 6vw, 2.5rem);
-      line-height: 1.2;
-    }
-
-    .title-decoration {
-      gap: 0.5rem;
-    }
-
-    .decoration-line {
-      height: 2px;
-      width: clamp(40px, 15vw, 60px);
-    }
-
-    .decoration-center {
-      gap: 0.3rem;
-    }
-
-    .decoration-star,
-    .decoration-diamond {
-      font-size: clamp(0.8rem, 2.5vw, 1rem);
-    }
-
-    .game-subtitle {
-      gap: 0.3rem;
-    }
-
-    .subtitle-text {
-      font-size: clamp(0.9rem, 2.5vw, 1rem);
-    }
-
-    .subtitle-underline {
-      height: 1px;
-      width: clamp(120px, 40vw, 200px);
-    }
-
-    .developer-info {
-      gap: 0.5rem;
-    }
-
-    .dev-card {
-      padding: 0.5rem;
-      gap: 0.5rem;
-    }
-
-    .dev-avatar {
-      font-size: clamp(1.5rem, 4vw, 2rem);
-    }
-
-    .dev-details {
-      gap: 0.2rem;
-    }
-
-    .dev-name {
-      font-size: clamp(0.8rem, 2.2vw, 0.9rem);
-    }
-
-    .dev-link {
-      gap: 0.2rem;
-    }
-
-    .dev-id {
-      font-size: clamp(0.7rem, 2vw, 0.8rem);
-    }
-
-    .link-icon {
-      font-size: clamp(0.6rem, 1.8vw, 0.7rem);
-    }
-
-    .intro-actions {
-      gap: 1rem;
-    }
-
-    .start-btn {
-      padding: clamp(0.8rem, 3vw, 1rem) clamp(1.5rem, 5vw, 2rem);
-      border-radius: 12px;
-      min-height: clamp(48px, 12vw, 56px);
-    }
-
-    .btn-content {
-      gap: 0.5rem;
-    }
-
-    .btn-icon {
-      font-size: clamp(1.2rem, 3.5vw, 1.5rem);
-    }
-
-    .btn-text {
-      font-size: clamp(1rem, 2.8vw, 1.2rem);
-    }
-
-    .game-info {
-      gap: 0.5rem;
-    }
-
-    .info-item {
-      gap: 0.3rem;
-    }
-
-    .info-icon {
-      font-size: clamp(0.8rem, 2.2vw, 0.9rem);
-    }
-
-    .info-text {
-      font-size: clamp(0.7rem, 2vw, 0.8rem);
-    }
-
-    .floating-dice {
-      display: none; /* 移动端隐藏浮动骰子以节省空间 */
-    }
-
-    .floating-stars {
-      display: none; /* 移动端隐藏浮动星星以节省空间 */
-    }
-  }
-
-  /* 小屏手机优化 */
-  @media (max-width: 480px) {
-    .intro-page {
-      padding: 0.5rem;
-    }
-
-    .intro-content {
-      gap: 1rem;
-      padding: 0.5rem;
-    }
-
-    .intro-header {
-      gap: 0.8rem;
-    }
-
-    .game-title {
-      font-size: clamp(1.5rem, 5vw, 1.8rem);
-    }
-
-    .title-decoration {
-      gap: 0.4rem;
-    }
-
-    .decoration-line {
-      width: clamp(30px, 12vw, 40px);
-    }
-
-    .decoration-star,
-    .decoration-diamond {
-      font-size: clamp(0.7rem, 2vw, 0.8rem);
-    }
-
-    .subtitle-text {
-      font-size: clamp(0.8rem, 2.2vw, 0.9rem);
-    }
-
-    .subtitle-underline {
-      width: clamp(100px, 35vw, 150px);
-    }
-
-    .dev-card {
-      padding: 0.4rem;
-      gap: 0.4rem;
-    }
-
-    .dev-avatar {
-      font-size: clamp(1.3rem, 3.5vw, 1.5rem);
-    }
-
-    .dev-name {
-      font-size: clamp(0.75rem, 2vw, 0.8rem);
-    }
-
-    .dev-id {
-      font-size: clamp(0.65rem, 1.8vw, 0.7rem);
-    }
-
-    .start-btn {
-      padding: clamp(0.7rem, 2.5vw, 0.8rem) clamp(1.2rem, 4vw, 1.5rem);
-      min-height: clamp(44px, 11vw, 48px);
-    }
-
-    .btn-icon {
-      font-size: clamp(1rem, 3vw, 1.2rem);
-    }
-
-    .btn-text {
-      font-size: clamp(0.9rem, 2.5vw, 1rem);
-    }
-
-    .game-info {
-      gap: 0.4rem;
-    }
-
-    .info-item {
-      gap: 0.25rem;
-    }
-
-    .info-icon {
-      font-size: clamp(0.7rem, 2vw, 0.8rem);
-    }
-
-    .info-text {
-      font-size: clamp(0.65rem, 1.8vw, 0.7rem);
-    }
-  }
-
-  /* 超小屏手机优化 */
-  @media (max-width: 360px) {
-    .intro-page {
-      padding: 0.3rem;
-    }
-
-    .intro-content {
-      gap: 0.8rem;
-      padding: 0.3rem;
-    }
-
-    .intro-header {
-      gap: 0.6rem;
-    }
-
-    .game-title {
-      font-size: clamp(1.3rem, 4.5vw, 1.5rem);
-    }
-
-    .title-decoration {
-      gap: 0.3rem;
-    }
-
-    .decoration-line {
-      width: clamp(25px, 10vw, 30px);
-    }
-
-    .decoration-star,
-    .decoration-diamond {
-      font-size: clamp(0.6rem, 1.8vw, 0.7rem);
-    }
-
-    .subtitle-text {
-      font-size: clamp(0.75rem, 2vw, 0.8rem);
-    }
-
-    .subtitle-underline {
-      width: clamp(80px, 30vw, 120px);
-    }
-
-    .dev-card {
-      padding: 0.3rem;
-      gap: 0.3rem;
-    }
-
-    .dev-avatar {
-      font-size: clamp(1.1rem, 3vw, 1.3rem);
-    }
-
-    .dev-name {
-      font-size: clamp(0.7rem, 1.8vw, 0.75rem);
-    }
-
-    .dev-id {
-      font-size: clamp(0.6rem, 1.5vw, 0.65rem);
-    }
-
-    .intro-features {
-      gap: 0.5rem;
-    }
-
-    .feature-item {
-      padding: 0.5rem;
-      gap: 0.3rem;
-    }
-
-    .feature-icon-container {
-      width: clamp(30px, 8vw, 35px);
-      height: clamp(30px, 8vw, 35px);
-    }
-
-    .feature-icon {
-      font-size: clamp(0.9rem, 2.2vw, 1rem);
-    }
-
-    .feature-text h3 {
-      font-size: clamp(0.75rem, 2vw, 0.8rem);
-      margin-bottom: 0.1rem;
-    }
-
-    .feature-text p {
-      font-size: clamp(0.6rem, 1.5vw, 0.65rem);
-    }
-
-    .start-btn {
-      padding: clamp(0.6rem, 2vw, 0.7rem) clamp(1rem, 3.5vw, 1.2rem);
-      min-height: clamp(40px, 10vw, 44px);
-    }
-
-    .btn-icon {
-      font-size: clamp(0.9rem, 2.5vw, 1rem);
-    }
-
-    .btn-text {
-      font-size: clamp(0.8rem, 2.2vw, 0.9rem);
-    }
-
-    .game-info {
-      gap: 0.3rem;
-    }
-
-    .info-item {
-      gap: 0.2rem;
-    }
-
-    .info-icon {
-      font-size: clamp(0.65rem, 1.8vw, 0.7rem);
-    }
-
-    .info-text {
-      font-size: clamp(0.6rem, 1.5vw, 0.65rem);
-    }
-  }
-
-  /* 横屏模式优化 */
-  @media (max-width: 767px) and (orientation: landscape) {
-    .intro-page {
-      padding: 0.5rem;
-    }
-
-    .intro-content {
-      gap: 1rem;
-      padding: 0.5rem;
-    }
-
-    .intro-header {
-      gap: 0.8rem;
-    }
-
-    .game-title {
-      font-size: clamp(1.5rem, 5vw, 1.8rem);
-    }
-
-    .title-decoration {
-      gap: 0.4rem;
-    }
-
-    .decoration-line {
-      width: clamp(30px, 12vw, 40px);
-    }
-
-    .decoration-star,
-    .decoration-diamond {
-      font-size: clamp(0.7rem, 2vw, 0.8rem);
-    }
-
-    .subtitle-text {
-      font-size: clamp(0.8rem, 2.2vw, 0.9rem);
-    }
-
-    .subtitle-underline {
-      width: clamp(100px, 35vw, 150px);
-    }
-
-    .dev-card {
-      padding: 0.4rem;
-      gap: 0.4rem;
-    }
-
-    .dev-avatar {
-      font-size: clamp(1.3rem, 3.5vw, 1.5rem);
-    }
-
-    .dev-name {
-      font-size: clamp(0.75rem, 2vw, 0.8rem);
-    }
-
-    .dev-id {
-      font-size: clamp(0.65rem, 1.8vw, 0.7rem);
-    }
-
-    .start-btn {
-      padding: clamp(0.7rem, 2.5vw, 0.8rem) clamp(1.2rem, 4vw, 1.5rem);
-      min-height: clamp(44px, 11vw, 48px);
-    }
-
-    .btn-icon {
-      font-size: clamp(1rem, 3vw, 1.2rem);
-    }
-
-    .btn-text {
-      font-size: clamp(0.9rem, 2.5vw, 1rem);
-    }
-
-    .game-info {
-      gap: 0.4rem;
-    }
-
-    .info-item {
-      gap: 0.25rem;
-    }
-
-    .info-icon {
-      font-size: clamp(0.7rem, 2vw, 0.8rem);
-    }
-
-    .info-text {
-      font-size: clamp(0.65rem, 1.8vw, 0.7rem);
-    }
+    .intro-page { padding: 1rem; min-height: 100vh; }
+    .intro-content { gap: 1.5rem; padding: 1rem; }
+    .intro-header { gap: 1rem; }
+    .title-container { gap: 0.5rem; }
+    .game-title { font-size: clamp(1.8rem, 6vw, 2.5rem); line-height: 1.2; }
+    .title-decoration { gap: 0.5rem; }
+    .decoration-line { height: 2px; width: clamp(40px, 15vw, 60px); }
+    .decoration-center { gap: 0.3rem; }
+    .decoration-star, .decoration-diamond { font-size: clamp(0.8rem, 2.5vw, 1rem); }
+    .game-subtitle { gap: 0.3rem; }
+    .subtitle-text { font-size: clamp(0.9rem, 2.5vw, 1rem); }
+    .subtitle-underline { height: 1px; width: clamp(120px, 40vw, 200px); }
+    .developer-info { gap: 0.5rem; }
+    .dev-card { padding: 0.5rem; gap: 0.5rem; }
+    .dev-avatar { font-size: clamp(1.5rem, 4vw, 2rem); }
+    .dev-details { gap: 0.2rem; }
+    .dev-name { font-size: clamp(0.8rem, 2.2vw, 0.9rem); }
+    .dev-link { gap: 0.2rem; }
+    .dev-id { font-size: clamp(0.7rem, 2vw, 0.8rem); }
+    .link-icon { font-size: clamp(0.6rem, 1.8vw, 0.7rem); }
+    .intro-actions { gap: 1rem; }
+    .start-btn { padding: clamp(0.8rem, 3vw, 1rem) clamp(1.5rem, 5vw, 2rem); border-radius: 12px; min-height: clamp(48px, 12vw, 56px); }
+    .btn-content { gap: 0.5rem; }
+    .btn-icon { font-size: clamp(1.2rem, 3.5vw, 1.5rem); }
+    .btn-text { font-size: clamp(1rem, 2.8vw, 1.2rem); }
+    .game-info { gap: 0.5rem; }
+    .info-item { gap: 0.3rem; }
+    .info-icon { font-size: clamp(0.8rem, 2.2vw, 0.9rem); }
+    .info-text { font-size: clamp(0.7rem, 2vw, 0.8rem); }
+    .floating-dice { display: none; }
+    .floating-stars { display: none; }
+    .player-avatar-display { width: clamp(34px, 9vw, 40px); height: clamp(34px, 9vw, 40px); }
+    .avatar-letter { font-size: clamp(0.85rem, 2.5vw, 1rem); }
   }
 
   /* 清空缓存控件样式 */
@@ -1597,9 +1164,7 @@
     box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
   }
 
-  .clear-cache-btn .btn-icon {
-    font-size: 1rem;
-  }
+  .clear-cache-btn .btn-icon { font-size: 1rem; }
 
   .cache-hint {
     margin-top: 0.5rem;
@@ -1608,7 +1173,6 @@
     opacity: 0.8;
   }
 
-  /* 清空成功提示样式 */
   .clear-success-toast {
     position: fixed;
     top: 2rem;
@@ -1629,40 +1193,17 @@
     animation: toastSlideIn 0.3s ease-out;
   }
 
-  .toast-icon {
-    font-size: 1.1rem;
-  }
+  .toast-icon { font-size: 1.1rem; }
 
   @keyframes toastSlideIn {
-    from {
-      opacity: 0;
-      transform: translateX(-50%) translateY(-20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
+    from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
   }
 
-  /* 移动端适配 */
   @media (max-width: 768px) {
-    .cache-controls {
-      margin-top: 1rem;
-    }
-
-    .clear-cache-btn {
-      padding: 0.5rem 1rem;
-      font-size: 0.8rem;
-    }
-
-    .cache-hint {
-      font-size: 0.7rem;
-    }
-
-    .clear-success-toast {
-      top: 1rem;
-      padding: 0.6rem 1.2rem;
-      font-size: 0.85rem;
-    }
+    .cache-controls { margin-top: 1rem; }
+    .clear-cache-btn { padding: 0.5rem 1rem; font-size: 0.8rem; }
+    .cache-hint { font-size: 0.7rem; }
+    .clear-success-toast { top: 1rem; padding: 0.6rem 1.2rem; font-size: 0.85rem; }
   }
 </style>
